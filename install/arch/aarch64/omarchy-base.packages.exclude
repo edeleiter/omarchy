@@ -1,0 +1,32 @@
+# Packages omitted from omarchy-base.packages on aarch64.
+#
+# Every entry here is a package with no build path we are willing to take, not merely
+# one that is absent from Arch Linux ARM. 122 of the manifest's 148 packages install
+# straight from ALARM, and 20 more build from omarchy-pkgs, which already declares
+# aarch64 for them. See docs/survey.md in the port repo for the per-package evidence.
+
+# Nowhere: not in ALARM, not in [omarchy], and nothing in the AUR provides it.
+# The only genuine casualty in the manifest.
+qemu-user-static-binfmt
+
+# No PKGBUILD in omarchy-pkgs. AUR forks (obs-studio-browser, obs-studio-rc) do declare
+# aarch64, but running a fork of OBS is not a trade we want. gpu-screen-recorder is
+# already in the manifest and resolves for aarch64.
+obs-studio
+
+# No PKGBUILD in omarchy-pkgs, and its only reference anywhere in the tree is this
+# manifest - it is here for pinta, which is also excluded below.
+dotnet-runtime
+
+# No PKGBUILD in omarchy-pkgs. bin/omarchy-theme-set-obsidian exits 0 when the current
+# theme ships no obsidian.css, so nothing breaks by its absence. AUR obsidian-bin
+# declares aarch64 if it is ever wanted back.
+obsidian
+
+# In the [omarchy] database but with no PKGBUILD in omarchy-pkgs, so there is nothing to
+# build from. Referenced only by bin/omarchy-install-preinstalls, which is opt-in.
+pinta
+
+# Apple Studio Display brightness control. omarchy-pkgs declares arch=('x86_64'
+# 'aarch64'), so this one builds fine - it is simply meaningless on this board.
+asdcontrol

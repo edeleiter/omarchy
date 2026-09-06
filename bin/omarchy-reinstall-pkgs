@@ -14,5 +14,14 @@ omarchy-refresh-pacman
 sudo env OMARCHY_UPDATE_PACMAN=1 pacman -Suu --noconfirm
 
 # Ensure all packages are installed
-mapfile -t packages < <(grep -v '^#' "$OMARCHY_PATH/install/omarchy-base.packages" | grep -v '^$')
+source "$OMARCHY_PATH/install/helpers/packages.sh"
+mapfile -t packages < <(resolve_packages "$OMARCHY_PATH/install/omarchy-base.packages")
+
+# Without this guard an empty list turns the pacman call below into `pacman -Syu` with no
+# package arguments: a silent unattended full-system upgrade instead of an error.
+if (( ${#packages[@]} == 0 )); then
+  echo "No packages resolved from $OMARCHY_PATH/install/omarchy-base.packages" >&2
+  exit 1
+fi
+
 sudo env OMARCHY_UPDATE_PACMAN=1 pacman -Syu --noconfirm --needed "${packages[@]}"
