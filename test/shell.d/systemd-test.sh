@@ -101,6 +101,9 @@ grep -Fx 'DefaultMemoryPressureDurationSec=20s' "$oomd_conf" >/dev/null ||
   fail "no pressure duration set for the tightened limit"
 pass "systemd-oomd acts on sustained memory stall"
 
-grep -Fx 'systemctl enable systemd-oomd.service' "$ROOT/install/config/enable-services.sh" >/dev/null ||
+# enable_system_service, not a bare `systemctl enable`: every enable in that leaf now
+# goes through the attempt-and-warn helper so one absent unit cannot abort the apply.
+# The assertion is still that oomd is enabled on new installs.
+grep -Fx 'enable_system_service systemd-oomd.service' "$ROOT/install/config/enable-services.sh" >/dev/null ||
   fail "new installs ship the oomd drop-ins with the daemon that reads them disabled"
 pass "new installs enable systemd-oomd"

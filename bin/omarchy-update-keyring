@@ -17,6 +17,10 @@ fi
 
 # Ensure we have the latest archlinux-keyring, maintainer keys might have changed
 # Always reinstall, as the keyring can be updated without a package version bump.
+#
+# archlinuxarm-keyring is the one that matters here: Arch Linux ARM signs the packages
+# in [core], [extra], [alarm] and [aur] with its own keys, and archlinux-keyring does
+# not carry them. Without it every ALARM package fails signature verification.
 echo -e "\e[32m\nUpdate Arch signing keys\e[0m"
-sudo pacman -Sy --noconfirm archlinux-keyring >/dev/null 2> >(grep -vE '^warning: archlinux-keyring-[^ ]+ is up to date -- reinstalling$' >&2)
+sudo pacman -Sy --noconfirm archlinux-keyring archlinuxarm-keyring >/dev/null 2> >(grep -vE '^warning: archlinux(arm)?-keyring-[^ ]+ is up to date -- reinstalling$' >&2)
 echo "Keys are correct"

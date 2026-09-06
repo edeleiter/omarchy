@@ -22,6 +22,18 @@ for kernel in /usr/lib/modules/*/vmlinuz; do
   fi
 done
 
+# Arch Linux ARM installs the kernel image at /boot/Image and ships no vmlinuz inside
+# the modules tree, so the glob above matches nothing and every single update would
+# report the kernel as changed and prompt for a reboot. Fall back to asking whether the
+# running kernel's own module directory is still owned by an installed package: after a
+# real kernel update uname -r names a directory that no longer exists, and otherwise it
+# names one that does. That holds on both layouts, so this only ever adds an answer
+# where the loop above found none.
+if [[ $kernel_updated == "true" && -d /usr/lib/modules/$running_kernel ]] &&
+  pacman -Qo "/usr/lib/modules/$running_kernel" &>/dev/null; then
+  kernel_updated=false
+fi
+
 if [[ $kernel_updated == "true" ]]; then
   confirm_reboot "Linux kernel has been updated. Reboot?"
 elif [[ -f $HOME/.local/state/omarchy/reboot-required ]]; then

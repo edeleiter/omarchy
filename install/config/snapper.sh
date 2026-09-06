@@ -10,7 +10,13 @@ if [[ ! -f $SNAPPER_CONFIG_PATH ]]; then
   if [[ ${OMARCHY_SNAPPER_CONFIGURE_TEST:-0} == "1" ]]; then
     : >"$SNAPPER_CONFIG_PATH"
   else
-    snapper --no-dbus -c root create-config / >/dev/null 2>&1 || snapper -c root create-config / >/dev/null
+    # snapper manages btrfs subvolumes, so create-config cannot succeed on an ext4
+    # root - and this board's root is ext4 by design. run_logged runs this leaf under
+    # `bash -eE` and returns its status, so without the guard both attempts failing
+    # aborts the entire apply. The retention config written below is still installed;
+    # it simply has no snapper config to sit beside, which is the intended outcome.
+    snapper --no-dbus -c root create-config / >/dev/null 2>&1 ||
+      snapper -c root create-config / >/dev/null 2>&1 || true
   fi
 fi
 

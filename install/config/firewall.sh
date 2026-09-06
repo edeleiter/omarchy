@@ -18,7 +18,15 @@ ufw allow in proto udp from 192.168.0.0/16 to 172.17.0.1 port 53 comment 'allow-
 install_ufw_docker_rules() {
   local shim_dir status ufw_docker_bin
 
-  ufw_docker_bin=$(command -v ufw-docker)
+  # `local` is declared separately above, so this assignment does not mask its own exit
+  # status the way `local x=$(...)` would. Under `bash -eE` via run_logged, a missing
+  # ufw-docker therefore aborts the whole apply rather than skipping the Docker rules.
+  # Nothing else in this leaf depends on it, so skipping is the correct degradation.
+  if ! ufw_docker_bin=$(command -v ufw-docker); then
+    echo "ufw-docker is not installed; skipping the Docker firewall rules"
+    return 0
+  fi
+
   shim_dir=$(mktemp -d)
   cat >"$shim_dir/ufw" <<'EOF'
 #!/bin/bash

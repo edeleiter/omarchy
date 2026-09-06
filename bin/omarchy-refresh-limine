@@ -3,17 +3,28 @@
 # omarchy:summary=Overwrite the user config for the Limine bootloader and rebuild it.
 # omarchy:requires-sudo=true
 
-legacy_uki="/boot/EFI/Linux/$(cat /etc/machine-id)_linux.efi"
+# This board boots through U-Boot and extlinux; Limine is x86 firmware tooling and is
+# never installed here. bin/omarchy-reinstall-configs runs under `set -euo pipefail` and
+# calls this unguarded, so limine-update being absent took the whole config reset down
+# with it. The mv was unguarded too: on a machine that never had /boot/limine.conf it
+# fails before anything useful happens.
+if omarchy-cmd-missing limine-update; then
+  echo "Limine is not installed; skipping the bootloader config refresh"
+else
+  legacy_uki="/boot/EFI/Linux/$(cat /etc/machine-id)_linux.efi"
 
-if sudo test -f /boot/EFI/Linux/omarchy_linux.efi && sudo test -f "$legacy_uki"; then
-  echo "Cleanup extra UKI"
-  sudo rm -f "$legacy_uki"
+  if sudo test -f /boot/EFI/Linux/omarchy_linux.efi && sudo test -f "$legacy_uki"; then
+    echo "Cleanup extra UKI"
+    sudo rm -f "$legacy_uki"
+  fi
+  echo "Resetting limine config"
+
+  if sudo test -f /boot/limine.conf; then
+    sudo mv /boot/limine.conf /boot/limine.conf.bak
+  fi
+
+  sudo cp "$OMARCHY_PATH/default/limine/limine.conf" /boot/limine.conf
+
+  sudo limine-update
+  sudo limine-snapper-sync
 fi
-echo "Resetting limine config"
-
-sudo mv /boot/limine.conf /boot/limine.conf.bak
-
-sudo cp "$OMARCHY_PATH/default/limine/limine.conf" /boot/limine.conf
-
-sudo limine-update
-sudo limine-snapper-sync

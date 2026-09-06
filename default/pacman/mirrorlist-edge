@@ -1,1 +1,1 @@
-Server = https://mirror.omarchy.org/$repo/os/$arch
+Server = http://mirror.archlinuxarm.org/$arch/$repo
