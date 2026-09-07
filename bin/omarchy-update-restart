@@ -29,8 +29,12 @@ done
 # real kernel update uname -r names a directory that no longer exists, and otherwise it
 # names one that does. That holds on both layouts, so this only ever adds an answer
 # where the loop above found none.
-if [[ $kernel_updated == "true" && -d /usr/lib/modules/$running_kernel ]] &&
-  pacman -Qo "/usr/lib/modules/$running_kernel" &>/dev/null; then
+# Deliberately does NOT require pacman to own the directory. On this board the kernel is
+# donated from Armbian and restored from a tarball, so nothing owns it - an earlier version
+# of this check required `pacman -Qo` to succeed and therefore never fired, claiming a
+# kernel update on every single run. Presence of the running kernel's module directory is
+# the signal: after a real kernel change, uname -r names a directory that no longer exists.
+if [[ $kernel_updated == "true" && -d /usr/lib/modules/$running_kernel ]]; then
   kernel_updated=false
 fi
 
