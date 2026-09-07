@@ -59,7 +59,17 @@ install_ufw_docker_rules
 # This board is headless and administered over ssh. Upstream denies all inbound, which is
 # right for a laptop with a physical user and wrong here: it leaves a serial cable as the
 # only way in. Deliberate deviation, cm5-only - it must never reach an upstream PR.
-ufw allow 22/tcp comment 'ssh: headless board, administered over the network'
+#
+# `limit`, not `allow`, and the comment is upstream's verbatim. Three reasons, none of
+# them optional:
+#   - limit adds the rate limiting that allow does not, which matters more here than on a
+#     laptop: this board autologs in and is reachable from the network permanently.
+#   - bin/omarchy-remove-security-sshd:17 deletes `limit 22/tcp`. With an `allow` rule the
+#     user-facing "remove SSH access" action reports success and leaves port 22 open.
+#   - test/acceptance.d/security-test.sh:93 asserts `^22/tcp\s+LIMIT`.
+# ufw matches in insertion order, so an install-time ALLOW would also shadow any LIMIT
+# added later by omarchy-setup-security-sshd.
+ufw limit 22/tcp comment 'omarchy-sshd'
 
 # Installs are followed by reboot, so configure UFW to start on the installed
 # system instead of mutating the live install session's firewall.

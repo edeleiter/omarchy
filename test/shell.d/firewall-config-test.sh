@@ -48,4 +48,17 @@ PATH="$stub_dir:$PATH" bash -eE -c 'source "$1"' bash "$ROOT/install/config/fire
 grep -q '^ufw-docker install$' "$TEST_LOG" || fail "ufw-docker rules are installed"
 grep -q '^systemctl enable ufw$' "$TEST_LOG" || fail "ufw is enabled for next boot"
 
+# `limit`, not `allow`. This board is reachable over ssh permanently and autologs in, so the
+# rate limiting is the point; and bin/omarchy-remove-security-sshd deletes a `limit` rule,
+# so an `allow` here would make the user-facing "remove SSH access" action silently
+# ineffective while reporting success. Matches the acceptance assertion at
+# test/acceptance.d/security-test.sh:93 (`^22/tcp\s+LIMIT`).
+grep -q '^ufw limit 22/tcp ' "$TEST_LOG" ||
+  fail "the SSH port is rate limited rather than plainly allowed" "$(cat "$TEST_LOG")"
+# `if`, not `grep … && fail`: under set -e a non-matching grep makes that AND-list return
+# non-zero and kills the script on the passing path.
+if grep -q '^ufw allow 22/tcp' "$TEST_LOG"; then
+  fail "the SSH port must not be opened with a plain allow rule" "$(cat "$TEST_LOG")"
+fi
+
 pass "firewall config installs ufw-docker rules without activating live UFW"

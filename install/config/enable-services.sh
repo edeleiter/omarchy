@@ -16,7 +16,13 @@ enable_system_service() {
 
 enable_system_service cups.service
 enable_system_service avahi-daemon.service
-enable_system_service linux-modules-cleanup.service
+# linux-modules-cleanup.service is deliberately NOT enabled here. It ships with
+# kernel-modules-hook, which install/arch/aarch64/omarchy-base.packages.exclude removes for
+# this port, and its job is to delete every /usr/lib/modules/* directory that is neither the
+# running kernel nor owned by pacman. Ours is exactly that: an Armbian tree that pacman does
+# not own and cannot reinstall. Enabling it costs the GPU and the ethernet the moment it
+# fires. The exclude only covers packages resolved through the manifest, so if the package
+# ever arrives as a dependency the unit would otherwise be armed and waiting.
 enable_system_service docker.socket
 enable_system_service systemd-resolved.service
 enable_system_service NetworkManager.service

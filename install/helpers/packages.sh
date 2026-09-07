@@ -44,9 +44,19 @@ resolve_packages() {
   overlay="$(dirname -- "$listfile")/arch/$arch/$(basename -- "$listfile")"
   packages="$(packages_strip_comments "$listfile")"
 
+  # Both passes below feed awk ONE stream with an explicit \001 separator, rather than two
+  # files distinguished by `NR == FNR`. That idiom is silently wrong when the first file is
+  # empty: FNR restarts at 1 for the second file, so `NR == FNR` stays true for every line
+  # of the manifest, the whole manifest is consumed as overlay keys, and the result is an
+  # empty package list plus warnings naming the manifest's own packages as absent from it -
+  # the diagnostic reads exactly backwards from the truth. An overlay that is empty, or
+  # whose last live line has been commented out while debugging, is entirely ordinary.
+  # \001 cannot occur in a package name, so it is an unambiguous separator.
   if [[ -f $overlay.exclude ]]; then
     packages="$(awk -v kind=exclude '
-      NR == FNR { drop[$1] = 1; next }
+      $0 == "\001" { in_manifest = 1; next }
+      !in_manifest { drop[$1] = 1; next }
+      NF == 0 { next }
       $1 in drop { used[$1] = 1; next }
       { print }
       END {
@@ -54,12 +64,27 @@ resolve_packages() {
           if (!(package in used))
             printf "resolve_packages: %s overlay lists %s, which the manifest does not contain\n", kind, package >"/dev/stderr"
       }
-    ' <(packages_strip_comments "$overlay.exclude") <(printf '%s\n' "$packages"))"
+    ' <(
+      packages_strip_comments "$overlay.exclude"
+      printf '\001\n%s\n' "$packages"
+    ))"
   fi
 
   if [[ -f $overlay.replace ]]; then
     packages="$(awk -v kind=replace '
-      NR == FNR { replacement[$1] = $2; next }
+      $0 == "\001" { in_manifest = 1; next }
+      # A one-field replace line would substitute an EMPTY package name into the middle of
+      # the list, where the trailing -n guard cannot see it; mapfile then hands pacman a
+      # zero-length argument. Reject the line and say so instead.
+      !in_manifest {
+        if (NF != 2) {
+          printf "resolve_packages: %s overlay line %d is not \"old new\", ignoring: %s\n", kind, FNR, $0 >"/dev/stderr"
+          next
+        }
+        replacement[$1] = $2
+        next
+      }
+      NF == 0 { next }
       $1 in replacement { used[$1] = 1; print replacement[$1]; next }
       { print }
       END {
@@ -67,7 +92,10 @@ resolve_packages() {
           if (!(package in used))
             printf "resolve_packages: %s overlay lists %s, which the manifest does not contain\n", kind, package >"/dev/stderr"
       }
-    ' <(packages_strip_comments "$overlay.replace") <(printf '%s\n' "$packages"))"
+    ' <(
+      packages_strip_comments "$overlay.replace"
+      printf '\001\n%s\n' "$packages"
+    ))"
   fi
 
   if [[ -f $overlay.add ]]; then
