@@ -1,0 +1,98 @@
+#!/bin/bash
+
+# Warn when a package installs executables built for a different CPU architecture.
+#
+# Why this exists: an AUR -bin package does not compile anything, it repackages a vendor's
+# prebuilt binary. Plenty of them declare arch=('x86_64' 'aarch64') optimistically, or are
+# built with --ignorearch, so makepkg produces a package pacman records as aarch64 while the
+# payload inside is x86-64. It installs without complaint, drops a .desktop file in the
+# launcher, and then does nothing at all when clicked - there is no error anywhere, because
+# nothing ever executed. microsoft-edge-stable-bin is exactly this shape: 644 MiB of x86-64
+# recorded as aarch64.
+#
+# Reads target paths on stdin (the hook passes NeedsTargets) and reports any ELF whose
+# e_machine is not this machine's. Never fails the transaction: the package is already
+# installed by the time a PostTransaction hook runs, so the useful thing is to say so
+# loudly, not to return non-zero into pacman's output.
+#
+# Deliberately no dependency on `file` or `readelf`: this runs inside every matching pacman
+# transaction, and reading four bytes with od is both faster and one less thing to install.
+
+set -uo pipefail
+
+# e_machine values from the ELF spec, for the architectures that could plausibly turn up
+# here. https://www.sco.com/developers/gabi/latest/ch4.eheader.html
+declare -A ELF_MACHINE=(
+  [3]="i386"
+  [40]="ARM (32-bit)"
+  [62]="x86-64"
+  [183]="AArch64"
+  [243]="RISC-V"
+)
+
+case "$(uname -m)" in
+aarch64) native=183 ;;
+x86_64) native=62 ;;
+armv7l) native=40 ;;
+riscv64) native=243 ;;
+*)
+  # An architecture this script does not know about is not an error; it just means we
+  # cannot judge, and guessing would produce false alarms on every install.
+  exit 0
+  ;;
+esac
+
+# Returns the ELF e_machine of $1, or nothing if the file is not an ELF.
+elf_machine() {
+  local magic bytes lo hi
+
+  # \177ELF. Anything else is a script, data, or a symlink to somewhere uninteresting.
+  magic="$(od -An -tx1 -N4 -- "$1" 2>/dev/null | tr -d ' ')"
+  [[ $magic == "7f454c46" ]] || return 0
+
+  # e_machine is a 2-byte little-endian field at offset 18 in both ELF32 and ELF64.
+  bytes="$(od -An -tu1 -j18 -N2 -- "$1" 2>/dev/null)"
+  read -r lo hi <<<"$bytes"
+  [[ -n ${lo:-} && -n ${hi:-} ]] || return 0
+
+  echo $((lo + hi * 256))
+}
+
+foreign=()
+while read -r target; do
+  [[ -f "/$target" && -x "/$target" ]] || continue
+
+  machine="$(elf_machine "/$target")"
+  [[ -n $machine ]] || continue
+  ((machine == native)) && continue
+
+  foreign+=("/$target|${ELF_MACHINE[$machine]:-unknown ($machine)}")
+done
+
+((${#foreign[@]})) || exit 0
+
+# Bright red, because this scrolls past inside a wall of pacman output and the whole point
+# is that the failure it predicts is otherwise completely silent.
+printf '\n\033[1;31m==> WARNING: foreign-architecture executables installed\033[0m\n' >&2
+printf '    This machine is %s (ELF e_machine %d). These files cannot run here:\n\n' \
+  "$(uname -m)" "$native" >&2
+
+for entry in "${foreign[@]}"; do
+  printf '      %-58s [%s]\n' "${entry%%|*}" "${entry##*|}" >&2
+done
+
+cat >&2 <<'EXPLAIN'
+
+    They will install cleanly, appear in the launcher, and silently do nothing when
+    started. This is almost always an AUR -bin package that ships a vendor binary with
+    no build for this architecture.
+
+    Options:
+      - Remove it and use a native package instead (check `pacman -Ss <name>` first;
+        the repos only ever carry binaries actually built for this architecture).
+      - Keep it and install qemu-user-static + qemu-user-static-binfmt to emulate, which
+        works but is slow and is a poor trade for anything interactive.
+
+EXPLAIN
+
+exit 0
