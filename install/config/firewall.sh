@@ -56,6 +56,11 @@ EOF
 
 install_ufw_docker_rules
 
+# This board is headless and administered over ssh. Upstream denies all inbound, which is
+# right for a laptop with a physical user and wrong here: it leaves a serial cable as the
+# only way in. Deliberate deviation, cm5-only - it must never reach an upstream PR.
+ufw allow 22/tcp comment 'ssh: headless board, administered over the network'
+
 # Installs are followed by reboot, so configure UFW to start on the installed
 # system instead of mutating the live install session's firewall.
 sed -i 's/^ENABLED=.*/ENABLED=yes/' /etc/ufw/ufw.conf

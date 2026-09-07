@@ -30,3 +30,13 @@ pinta
 # Apple Studio Display brightness control. omarchy-pkgs declares arch=('x86_64'
 # 'aarch64'), so this one builds fine - it is simply meaningless on this board.
 asdcontrol
+
+# Its systemd unit deletes every /usr/lib/modules/* directory that is neither the running
+# kernel nor pacman-owned. This board's kernel modules are restored from a tarball and
+# owned by nothing, so they match that description exactly -- they survive only while
+# `uname -r` happens to equal the directory name. One mismatched boot and the modules that
+# make this hardware work are gone: no panthor, no ethernet.
+#
+# Its purpose -- keeping a running system usable across a pacman kernel upgrade -- cannot
+# apply here, because pacman does not manage this kernel (see docs/verification/P1.md).
+kernel-modules-hook
